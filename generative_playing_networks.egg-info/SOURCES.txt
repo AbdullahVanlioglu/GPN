@@ -1,0 +1,7 @@
+README.md
+setup.py
+generative_playing_networks.egg-info/PKG-INFO
+generative_playing_networks.egg-info/SOURCES.txt
+generative_playing_networks.egg-info/dependency_links.txt
+generative_playing_networks.egg-info/requires.txt
+generative_playing_networks.egg-info/top_level.txt

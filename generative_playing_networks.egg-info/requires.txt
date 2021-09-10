@@ -1,0 +1,5 @@
+gym>=0.10.5
+numpy>=1.13.3
+tensorboard==1.14
+tensorboardX>=2.0
+pandas>=0.25.0
