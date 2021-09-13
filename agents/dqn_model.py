@@ -147,5 +147,5 @@ class DQN(object):
     def save_models(self, save_dir='./saved_models'):#=self.args.model_dir):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
-        torch.save(self.eval_net.state_dict(), os.path.join(save_dir, + '_policy_' +'.pth'))
+        torch.save(self.eval_net.state_dict(), os.path.join(save_dir + '_policy_' + '.pth'))
         #torch.save(self.target_net.state_dict(), os.path.join(save_dir, str(level) + '_target_net_' + '.pth'))

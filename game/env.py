@@ -14,7 +14,7 @@ GameDescription['zelda'] = {'ascii':[".","w","g","+","1","2","3","A"],
 			     'requirements':["A","g","+"]}
 """
 GameDescription['gpn'] = {'ascii':["-","W","X"],
-                             'mapping':[1, 2, 3],
+                             'mapping':[1, 2],
                              'state_shape':(14, 12, 16),
                              'model_shape':[(5,5),(10,10),(20,20),(80,80)],
 			     'requirements':["-","X","W"]}

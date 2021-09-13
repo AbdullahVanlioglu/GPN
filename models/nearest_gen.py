@@ -44,11 +44,9 @@ class Generator(nn.Module):
 
     def forward(self, z):
         x = self.preprocess(z)
-        # print("x",x.shape)
         d, h, w = self.init_shape
         x = x.view(-1, d, h, w)
         for b in self.blocks:
             x = b(x)
         x = self.output(x)
-        # print("X",x.shape)
         return x

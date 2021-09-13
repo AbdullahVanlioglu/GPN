@@ -7,11 +7,13 @@ import re
 import pickle
 import numpy as np
 import csv
+from tensorboardX import SummaryWriter
 
 from agents import dqn_model
 
 from point_mass_formation import AgentFormation
 from read_maps import fa_regenate
+from models.classifier import Classifier
 
 
 def parameters():
@@ -67,7 +69,10 @@ class rl:
         self.env = AgentFormation(visualization=self.args.visualization)
 
         #create RL agent
-        self.dqn = dqn_model.DQN(self.args)
+        self.dqn = dqn_model.DQN(self.args),
+
+        self.classifier = Classifier()
+        self.writer = SummaryWriter()
 
         #env
         self.env_def = env
@@ -83,9 +88,11 @@ class rl:
         #get action
         action = self.dqn.choose_action(agent_obs) # output is between 0 and 7
         n_agents = action + 1 # number of allowable agents is 1 to 8
+
         episode_reward, done, agent_next_obs = self.env.step(n_agents)
+
         if self.args.visualization:
-            self.env.close()
+            self.env.close()        
         
         self.dqn.memory.append(agent_obs, action, episode_reward, agent_next_obs, done)
         if  self.iteration > self.args.start_step and self.iteration % self.args.update_interval == 0:
@@ -95,6 +102,31 @@ class rl:
             self.best_reward = episode_reward
             self.dqn.save_models()
 
+        self.writer.add_scalar('Reward', episode_reward)
+        self.writer.add_scalar('Num. Agents', n_agents)
+        self.writer.add_scalar('Iteration', self.iteration)
+
         #print(f'Train Scale- {current_scale} | Iteration: {self.iteration} | Episode Reward: {round(episode_reward, 2)}')
         #print("rl train func ended")
+        
         return episode_reward
+
+    def classify(self, fake_map):
+        print("FAKE MAP",fake_map.shape)
+        ds_map, obstacle_map, prize_map, agent_obs, map_lim, obs_y_list, obs_x_list = fa_regenate(fake_map)
+
+        #reset environment
+        self.env.reset(ds_map, obstacle_map, prize_map, agent_obs, map_lim, obs_y_list, obs_x_list)
+        self.gen_optimizer.zero_grad()
+        n_agents = 5
+        episode_reward, done, agent_next_obs = self.env.step(n_agents)
+
+        value = self.classify.forward(agent_obs) # 2x80x80
+        target = torch.zeros_like(value)
+        loss = self.classifier.loss(value, target)
+        loss.backward()
+        self.classifier.optimizer.step()
+
+        self.agent.writer.add_scalar('classifier/loss', loss.item())
+
+        return n_agents

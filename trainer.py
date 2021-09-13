@@ -18,9 +18,10 @@ import distributionLoss
 import pdb
 
 class Trainer(object):
-    def __init__(self, gen, agent, save, version=0, elite_mode='max', elite_persist=True):
+    def __init__(self, gen, enc,  agent, save, version=0, elite_mode='max', elite_persist=True):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.generator = gen.to(self.device)
+        self.encoder = enc.to(self.device)
         self.gen_optimizer = gen.optimizer
         self.agent = agent
         self.loss = F.mse_loss #lambda x, y: (x.mean() - 0).pow(2) + (x.std() - .3).pow(2) #distributionLoss.NormalDivLoss().to(self.device)
@@ -85,85 +86,16 @@ class Trainer(object):
                 writer.writerow((update, strings[i], rewards[i], expected_rewards[i].item()))
 
     def new_elite_levels(self, z):
-        # num = z.size(0)
-        # rewards = []
-        # elite_lvls = []
-        # no_compile = 0
         
-        # for file in os.listdir(self.temp_dir.name):
-        #     path = os.path.join(self.temp_dir.name, file)
-        #     if(file.endswith('.csv')):
-        #         data = np.genfromtxt(path, delimiter=',', skip_header=1)
-        #         if(data.ndim == 1):
-        #             data = np.expand_dims(data, 0)
-        #         rewards.append(data)
-        #         os.remove(path)
-        #     elif(file.endswith('.no_compile')):
-        #         no_compile += 1
-        #         os.remove(path)
-        # if(len(rewards) > 0):
-        #     rewards = np.concatenate(rewards)
-        #     rewards = pd.DataFrame(rewards).groupby(0)
-        #     avg_rewards = rewards.mean()
-        #     if(self.elite_mode=='max'):
-        #         rewards = rewards.max()
-        #         winning_rewards = rewards[rewards[1] > 0].sort_values(1)
-        #         losing_rewards = rewards[rewards[1] <= 0].sort_values(1, ascending=False)
-        #         sorted_rewards = pd.concat([winning_rewards, losing_rewards])
-        #     elif(self.elite_mode=='mean'):
-        #         rewards = avg_rewards
-        #         sorted_rewards = rewards.abs().sort_values(1)
-        #     else:
-        #         raise Exception("This mode is not implemented")
-        #     elite_lvls = sorted_rewards.index.astype('int')[:num//3].tolist()
-        #     if(len(elite_lvls) > 0 and self.elite_persist):
-        #         with open(os.path.join(self.temp_dir.name,'rewards.csv'), 'w') as logs:
-        #             writer = csv.writer(logs)
-        #             writer.writerow(['level','reward'])
-        #             for lvl in elite_lvls:
-        #                 reward = rewards.loc[lvl].item()
-        #                 writer.writerow([lvl, reward])
+        lvl_tensors = self.generator.new(z)
+        lvl_strs = self.agent.env_def.create_levels(lvl_tensors)
         
-        # rewards = np.mean(avg_rewards.values) if not type(rewards)==list else 0
-        # self.agent.writer.add_scalar('levels/Elite Levels', len(elite_lvls), self.version)
-        # self.agent.writer.add_scalar('levels/Level Reward', rewards, self.version)
-        # self.agent.writer.add_scalar('levels/Uncompilable Levels', no_compile, self.version)
-        
-        lvl_tensor = self.generator.new(z) # 32x8x12x16 32x14x12x16
-        lvl_strs = self.agent.env_def.create_levels(lvl_tensor)
-        # elite_images = []
-        
-        # for i in range(num): # 32
-        #     path = os.path.join(self.temp_dir.name, "lvl_{}".format(i))
-        #     print("elite_lvls", elite_lvls)
-        #     if(i not in elite_lvls):
-        #         np.save(path + ".npy", states[i].cpu().numpy())
-        #         with open(path + ".txt", "w") as file:
-        #             file.write(lvl_strs[i])
-        #         if(not self.agent.env_def.pass_requirements(lvl_strs[i])):
-        #             open(path + ".no_compile", "w").close()
-        #     else:
-        #         with open(path + ".txt") as f:
-        #             lvl_strs[i] = f.read()
-        #         states[i] = torch.Tensor(np.load(path + ".npy")).to(self.device)
-        #         elite_images.append(np.array(self.level_visualizer.draw_level(lvl_strs[i]))/255.0)
-        # if(len(elite_images) > 0):
-        #     self.agent.writer.add_images('Elite Levels', elite_images[:8], (self.version), dataformats='HWC')
-        
-        return lvl_strs
+        return lvl_tensors, lvl_strs
 
     def new_levels(self, z, save=False):
-        lvl_tensor, states = self.generator.new(z)
-        lvl_strs = self.agent.env_def.create_levels(lvl_tensor)
-        num = z.size(0) if save else 0
-        for i in range(num):
-            path = os.path.join(self.temp_dir.name, "lvl_{}".format(i))
-            np.save(path + ".npy", states[i].cpu().numpy())
-            with open(path + ".txt", 'w') as file:
-                file.write(lvl_strs[i])
-            if(not self.agent.env_def.pass_requirements(lvl_strs[i])):
-                open(path + ".no_compile", "w").close()
-        return lvl_strs, states
+        lvl_tensors = self.generator.new(z)
+        
+        return lvl_tensors
 
     def freeze_weights(self, model):
         for p in model.parameters():
@@ -201,88 +133,64 @@ class Trainer(object):
 
     def train(self, updates, batch_size, gen_batches, div_batches, rl_steps, pretrain):
         self.generator.train()
-        z = self.z_generator(batch_size, self.generator.z_size) #128 scale debug
-        z_norm = lambda z: (z.norm(dim=1) - math.sqrt(self.generator.z_size)) / .7
-
-        #scale = nn.Sequential(
-        #    nn.Linear(64, 128, bias=False), nn.ReLU(),
-        #    nn.Linear(128, 256, bias=False), nn.ReLU(),
-        #    nn.Linear(256, 512, bias=False), nn.ReLU())
-        #scale = nn.Linear(128, 512)
-        #scale.to(self.device)
-        #scale_optim = torch.optim.Adam(scale.parameters(), lr=1e-4) #scale debug
+        z = self.z_generator(batch_size, self.generator.z_size) #32z512
 
         loss = 0
         entropy = 0
         gen_updates = 0
+        
         for update in range(self.version + 1, self.version + int(updates) + 1):
-            if(self.version == 0 and pretrain > 0):
-                self.agent.set_envs() #Pretrain on existing levels
-                self.agent.train_agent(pretrain)
-                self.save_models(1, 0)
+            lvl_tensors, lvl_strs = self.new_elite_levels(z(batch_size)) # 32x2x80x80
+
+            for i in range(len(lvl_tensors)):
+                n_agents = self.agent.classify(lvl_tensors[i])
+
+
+        generated_levels = []
+        for i in range(gen_batches+div_batches):
+            levels = self.new_levels(z(8))
+
+            self.gen_optimizer.zero_grad()
+            noise = z()
+            levels = self.generator(noise)
+
+            expected_value, dist, hidden = self.critic(states)
+            #diversity = (states[:-1] - states[1:]).pow(2).mean()
+            diversity = (hidden[:-1] - hidden[1:]).pow(2).mean()
+            target = torch.zeros_like(expected_value) #was ones like
+            gen_loss = self.loss(expected_value, target)
+            div_loss = -diversity
+            if(i < gen_batches):
+                    loss = gen_loss
             else:
-                lvl_strs = self.new_elite_levels(z(batch_size)) # 32x512
-                reward_list = []
-                for i in range(len(lvl_strs)):
-                    agent_mean_reward = self.agent.train(lvl_strs[i], iteration=100)
-                    reward_list.append(agent_mean_reward)
+                    loss = div_loss
+            loss.backward()
+            self.gen_optimizer.step()
 
-            generated_levels = []
-            for i in range(gen_batches+div_batches):
-                levels = self.new_levels(z(8))
-                # print("levels shape",levels.shape)
-                lvl_imgs = [np.array(self.level_visualizer.draw_level(lvl))/255.0 for lvl in levels]
-                # print(lvl_imgs)
-                generated_levels = lvl_imgs
+            self.agent.writer.add_scalar('generator/loss', gen_loss.item(), gen_updates)
+            self.agent.writer.add_scalar('generator/entropy', dist.item(), gen_updates)
+            self.agent.writer.add_scalar('generator/diversity', diversity.item(), gen_updates)
 
-                self.gen_optimizer.zero_grad()
-                #scale_optim.zero_grad() #scale
-                noise = z()
-                levels = self.generator(noise)
-                states = self.generator.adapter(levels)
-                expected_value, dist, hidden = self.critic(states)
-                #diversity = (states[:-1] - states[1:]).pow(2).mean()
-                diversity = (hidden[:-1] - hidden[1:]).pow(2).mean()
-                target = torch.zeros_like(expected_value) #was ones like
-                ##target = .5 + .5*z_norm(noise)
-                ##target = .5 + torch.rand_like(expected_value)
-                ##target_dist = torch.ones_like(dist)
-                #gen_loss = F.binary_cross_entropy_with_logits(expected_value, target)
-                #gen_loss = F.mse_loss(expected_value, target)
-                gen_loss = self.loss(expected_value, target)
-                div_loss = -diversity
-                if(i < gen_batches):
-                     loss = gen_loss
-                else:
-                     loss = div_loss
-                loss.backward()
-                self.gen_optimizer.step()
-                #scale_optim.step()  #scale
+            gen_updates += 1
 
-                self.agent.writer.add_scalar('generator/loss', gen_loss.item(), gen_updates)
-                self.agent.writer.add_scalar('generator/entropy', dist.item(), gen_updates)
-                self.agent.writer.add_scalar('generator/diversity', diversity.item(), gen_updates)
+        self.agent.writer.add_images('Generated Levels', generated_levels, (update-1), dataformats='HWC')
+        #Save a generated level
+        levels, states = self.new_levels(z(1)) #scale debug
+        with torch.no_grad():
+            expected_rewards = self.critic(states)
+        #real_rewards = self.eval_levels(levels)
+        real_rewards = ['Nan']
+        self.save_levels(update, levels, real_rewards, expected_rewards)
 
-                gen_updates += 1
-
-            self.agent.writer.add_images('Generated Levels', generated_levels, (update-1), dataformats='HWC')
-            #Save a generated level
-            levels, states = self.new_levels(z(1)) #scale debug
-            with torch.no_grad():
-                expected_rewards = self.critic(states)
-            #real_rewards = self.eval_levels(levels)
-            real_rewards = ['Nan']
-            self.save_levels(update, levels, real_rewards, expected_rewards)
-
-            #Save and report results
-            loss += gen_loss.item()
-            entropy += dist.item()
-            self.version += 1
-            save_frequency = 100
-            if(update%save_frequency == 0):
-                self.save_models(update, gen_loss)
-                self.save_loss(update, loss/save_frequency)
-                print('[{}] Gen Loss: {}, Entropy {}'.format(update, loss/save_frequency, entropy/save_frequency))
-                loss = 0
-                entropy = 0
+        #Save and report results
+        loss += gen_loss.item()
+        entropy += dist.item()
+        self.version += 1
+        save_frequency = 100
+        if(update%save_frequency == 0):
+            self.save_models(update, gen_loss)
+            self.save_loss(update, loss/save_frequency)
+            print('[{}] Gen Loss: {}, Entropy {}'.format(update, loss/save_frequency, entropy/save_frequency))
+            loss = 0
+            entropy = 0
         self.agent.envs.close()
