@@ -131,7 +131,6 @@ class rl:
                 best_agent = n_agents
             print(i, nagent_episode_reward)
             
-        print("CLASSIFIER")
         self.env.reset(ds_map, obstacle_map, prize_map, agent_obs, map_lim, obs_y_list, obs_x_list)
         episode_reward, done, agent_next_obs = self.env.step(best_agent)
 

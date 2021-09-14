@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torchvision.utils import make_grid
+from read_maps import fa_regenate
 import level_visualizer
 
 import distributionLoss
@@ -137,35 +138,29 @@ class Trainer(object):
         z = self.z_generator(batch_size, self.generator.z_size) # 32x512
 
         loss = 0
-        gen_updates = 0
         
-        # Classifier Train
-        for update in range(int(updates)):
-            lvl_tensors, lvl_strs = self.new_elite_levels(z(batch_size)) # 32x2x80x80
+        # Train Classifier
+        # for update in range(int(updates)):
+        #     lvl_tensors, lvl_strs = self.new_elite_levels(z(batch_size)) # 32x2x80x80
 
-            # for i in range(len(lvl_strs)):
-                # n_agents = self.agent.classify(lvl_strs[i], self.classifier)
+        #     for i in range(len(lvl_strs)):
+        #         n_agents = self.agent.classify(lvl_strs[i], self.classifier)
                 
-        print("*"*30)
-        # Generator Train
-        for i in range(gen_updates):
-            print(i)
-            levels, _ = self.new_levels(z(8))
-            print("levels",levels)
-            print(levels.shape)
-            lvl_imgs = [np.array(self.level_visualizer.draw_level(lvl))/255.0 for lvl in levels]
-            generated_levels = lvl_imgs
+
+        # Train Generator
+        for i in range(int(gen_updates)):
 
             self.gen_optimizer.zero_grad()
-            noise = z()
-            lvl_tensors, lvl_strs = self.new_elite_levels(z(1))
+            lvl_tensors, lvl_strs = self.new_elite_levels(z())
+            print(len(lvl_strs))
+
+            ds_map, obstacle_map, prize_map, agent_obs, map_lim, obs_y_list, obs_x_list = fa_regenate(lvl_strs)
 
             with torch.no_grad():
-                output = self.classifier.forward(lvl_strs)
+                output = self.classifier.forward(agent_obs)
 
             n_agents = torch.argmax(output)
 
-            ds_map, obstacle_map, prize_map, agent_obs, map_lim, obs_y_list, obs_x_list = self.agent.fa_regenate(lvl_strs)
             self.env.reset(ds_map, obstacle_map, prize_map, agent_obs, map_lim, obs_y_list, obs_x_list)
             episode_reward, _, _ = self.env.step(n_agents)
 
@@ -176,9 +171,7 @@ class Trainer(object):
             self.gen_optimizer.step()
 
             self.agent.writer.add_scalar('generator/loss', gen_loss.item(), gen_updates)
-            # self.agent.writer.add_scalar('generator/entropy', dist.item(), gen_updates)
-            # self.agent.writer.add_scalar('generator/diversity', diversity.item(), gen_updates)
-            self.agent.writer.add_images('Generated Levels', generated_levels, (i-1), dataformats='HWC')
+            self.agent.writer.add_images('Generated Levels', levels, (i-1), dataformats='HWC')
 
             #Save and report results
             loss += gen_loss.item()
