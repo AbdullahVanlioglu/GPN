@@ -40,13 +40,13 @@ class Classifier(nn.Module):
         
         self.final_layer = nn.Sequential(
         nn.Linear(256,8),
-        nn.Softmax()
+        # nn.Softmax()
         )
 
         self.optimizer = torch.optim.Adam(list(self.network.parameters())+
         list(self.feature.parameters())+
         list(self.final_layer.parameters()), lr = 1e-3)
-        self.loss = F.mse_loss
+        self.loss = nn.CrossEntropyLoss()
 
     def forward(self, x):
         x = torch.Tensor(x).unsqueeze(0)

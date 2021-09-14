@@ -7,6 +7,7 @@ import re
 import pickle
 import numpy as np
 import csv
+import numpy as np
 from tensorboardX import SummaryWriter
 
 from agents import dqn_model
@@ -71,7 +72,6 @@ class rl:
         #create RL agent
         self.dqn = dqn_model.DQN(self.args),
 
-        self.classifier = Classifier()
         self.writer = SummaryWriter()
 
         #env
@@ -111,22 +111,41 @@ class rl:
         
         return episode_reward
 
-    def classify(self, fake_map):
-        print("FAKE MAP",fake_map.shape)
+    def classify(self, fake_map, classifier):
         ds_map, obstacle_map, prize_map, agent_obs, map_lim, obs_y_list, obs_x_list = fa_regenate(fake_map)
-
+        classifier.optimizer.zero_grad()
         #reset environment
+
+        # best_agent = np.random.randint(8)
+        
+        min_reward = 0
+        best_agent = None
+        
+        for i in range(8): 
+            print(i)
+            self.env.reset(ds_map, obstacle_map, prize_map, agent_obs, map_lim, obs_y_list, obs_x_list)
+            n_agents = i+1
+            nagent_episode_reward, _, _ = self.env.step(n_agents)
+
+            if nagent_episode_reward > min_reward:
+                best_agent = n_agents
+        
+        
         self.env.reset(ds_map, obstacle_map, prize_map, agent_obs, map_lim, obs_y_list, obs_x_list)
-        self.gen_optimizer.zero_grad()
-        n_agents = 5
-        episode_reward, done, agent_next_obs = self.env.step(n_agents)
+        episode_reward, done, agent_next_obs = self.env.step(best_agent)
 
-        value = self.classify.forward(agent_obs) # 2x80x80
-        target = torch.zeros_like(value)
-        loss = self.classifier.loss(value, target)
+        high_feature, output = classifier.forward(agent_obs) # 2x80x80
+        output = output.unsqueeze(0)
+        # print(output)
+        # print(torch.argmax(output))
+        # target = torch.empty(8, dtype=torch.long)
+        # target = torch.zeros_like(output)
+        # target = torch.empty(1, dtype=torch.long).fill(best_agent)
+        target = torch.ones(1).type(torch.LongTensor)*best_agent
+        loss = classifier.loss(output, target)
         loss.backward()
-        self.classifier.optimizer.step()
+        classifier.optimizer.step()
 
-        self.agent.writer.add_scalar('classifier/loss', loss.item())
+        self.writer.add_scalar('classifier/loss', loss.item())
 
-        return n_agents
+        return best_agent

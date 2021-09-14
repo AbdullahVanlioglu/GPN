@@ -4,6 +4,7 @@ from agents.agent import Agent
 from trainer import Trainer
 from game.env import Env
 from rl_agent import rl
+from models.classifier import Classifier
 import torch
 
 
@@ -17,6 +18,7 @@ def main(game_name, game_length):
 	lr = .0001
 	gen = Generator(latent_shape, env, 'nearest', dropout, lr)
 	enc = Encoder()
+	clasx = Classifier()
 
 	#Agent
 	num_processes = 1
@@ -35,18 +37,16 @@ def main(game_name, game_length):
 	#Training
 	gen_updates = 1e2
 	gen_batch = 32
-	gen_batches = 1
-	diversity_batches = 0
+	gen_updates = 1e2
 	rl_batch = 1e2
-	pretrain = 0
 	elite_persist = False
 	elite_mode = 'mean'
 	load_version = 0
 	notes = ''
 	agent.writer.add_hparams({'Experiment': experiment, 'Lr':lr, 'Minibatch':gen_batch, 'RL_Steps': rl_batch, 'Notes':notes}, {})
-	t = Trainer(gen, enc, agent, experiment, load_version, elite_mode, elite_persist)
+	t = Trainer(gen, enc, clasx, agent, experiment, load_version, elite_mode, elite_persist)
 	t.loss = lambda x, y: x.mean().pow(2)
-	t.train(gen_updates, gen_batch, gen_batches, diversity_batches, rl_batch, pretrain)
+	t.train(gen_updates, gen_batch, gen_updates)
 
 if(__name__ == "__main__"):
 	main('gpn', 1000)

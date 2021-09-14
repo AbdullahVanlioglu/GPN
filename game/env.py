@@ -13,11 +13,11 @@ GameDescription['zelda'] = {'ascii':[".","w","g","+","1","2","3","A"],
                              'model_shape':[(3, 4),(6, 8),(12, 16)],
 			     'requirements':["A","g","+"]}
 """
-GameDescription['gpn'] = {'ascii':["-","W","X"],
-                             'mapping':[1, 2],
+GameDescription['gpn'] = {'ascii':["-","W", "X","D"],
+                             'mapping':[1, 2, 3],
                              'state_shape':(14, 12, 16),
                              'model_shape':[(5,5),(10,10),(20,20),(80,80)],
-			     'requirements':["-","X","W"]}
+			     'requirements':["-","W", "X"]}
 
 class Env:
 	def __init__(self, name, length):
@@ -35,7 +35,6 @@ class Env:
 		self.map_level = np.vectorize(lambda x: self.ascii[x])
 
 	def create_levels(self, tensor): # 32x8x12x16 our model: 32x3x80x80
-		# print("tensor",tensor.shape)
 		lvl_array = tensor.argmax(dim=1).cpu().numpy() # 32x12x16 our model: 32x80x80
 		lvls = self.map_level(lvl_array).tolist()
 		#lvl_strs = ['\n'.join([''.join(row) for row in lvl]) for lvl in lvls]
