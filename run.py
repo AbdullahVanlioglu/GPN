@@ -35,9 +35,9 @@ def main(game_name, game_length):
 	agent = rl(env)
 
 	#Training
-	gen_updates = 1e2
+	updates = 1e1
 	gen_batch = 32
-	gen_updates = 1e2
+	gen_updates = 1e4
 	rl_batch = 1e2
 	elite_persist = False
 	elite_mode = 'mean'
@@ -46,7 +46,7 @@ def main(game_name, game_length):
 	agent.writer.add_hparams({'Experiment': experiment, 'Lr':lr, 'Minibatch':gen_batch, 'RL_Steps': rl_batch, 'Notes':notes}, {})
 	t = Trainer(gen, enc, clasx, agent, experiment, load_version, elite_mode, elite_persist)
 	t.loss = lambda x, y: x.mean().pow(2)
-	t.train(gen_updates, gen_batch, gen_updates)
+	t.train(updates, gen_batch, gen_updates)
 
 if(__name__ == "__main__"):
 	main('gpn', 1000)
