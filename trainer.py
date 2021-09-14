@@ -143,11 +143,13 @@ class Trainer(object):
         for update in range(int(updates)):
             lvl_tensors, lvl_strs = self.new_elite_levels(z(batch_size)) # 32x2x80x80
 
-            for i in range(len(lvl_strs)):
-                n_agents = self.agent.classify(lvl_strs[i], self.classifier)
-
+            # for i in range(len(lvl_strs)):
+                # n_agents = self.agent.classify(lvl_strs[i], self.classifier)
+                
+        print("*"*30)
         # Generator Train
         for i in range(gen_updates):
+            print(i)
             levels, _ = self.new_levels(z(8))
             print("levels",levels)
             print(levels.shape)
